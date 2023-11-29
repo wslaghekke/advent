@@ -22,13 +22,25 @@ fun main(args: Array<String>) {
             false
         }
         if (overlaps) {
-            println("Overlap: $first - $second")
+            println("Full overlap: $first - $second")
         }
 
         overlaps
     }
 
-    println("Overlap count: $fullyOverlappingCount")
+    println("Full overlap count: $fullyOverlappingCount")
+
+    val anyOverlapCount = assignmentPairs.count { (first, second) ->
+        // first contained in second
+        val overlaps = (first.last >= second.first && first.first <= second.last)
+        if (overlaps) {
+            println("Any overlap: $first - $second")
+        }
+
+        overlaps
+    }
+    println("Any overlap count: $anyOverlapCount")
+
 }
 
 fun expandRange(range: String): IntRange {
