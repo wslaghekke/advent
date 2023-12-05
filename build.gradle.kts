@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.9.0"
+    kotlin("jvm") version "1.9.21"
     application
 }
 
@@ -13,7 +13,7 @@ repositories {
 
 
 kotlin {
-    jvmToolchain(15)
+    jvmToolchain(21)
 }
 
 application {
