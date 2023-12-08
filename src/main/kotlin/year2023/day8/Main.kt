@@ -1,12 +1,13 @@
 package year2023.day8
 
 import getInputResourceLines
+import utils.lcm
 
 fun main() {
     val lines = getInputResourceLines(2023, 8)
 
     val instructions = lines[0].toList()
-    val instructionSequence = generateSequence { instructions }.flatten().iterator()
+    val instructionSequence = generateSequence(instructions) { instructions }.flatten()
 
     // Format AAA = (BBB, CCC)
     val parseRegex = Regex("([A-Z0-9]{3}) = \\(([A-Z0-9]{3}), ([A-Z0-9]{3})\\)")
@@ -15,34 +16,32 @@ fun main() {
         node to (left to right)
     }.toMap()
 
-    doPart1(instructionSequence, nodeMap)
+    doPart1(instructionSequence.iterator(), nodeMap)
 
-    var stepCount = 0;
-    var currentNodeKeys = nodeMap.keys.filter { it.endsWith("A") }.toTypedArray()
+    val currentNodeKeys = nodeMap.keys.filter { it.endsWith("A") }.toTypedArray()
 
-    while (instructionSequence.hasNext()) {
-        if (currentNodeKeys.all { it.endsWith("Z") }) {
-            println("Reached Z in $stepCount steps")
-            break
-        }
-
-        when (val instruction = instructionSequence.next()) {
-            'L' -> {
-                currentNodeKeys.forEachIndexed { index, key ->
-                    currentNodeKeys[index] = nodeMap[key]?.first ?: throw Exception("Invalid node: $key")
-                }
+    val loopLengths = currentNodeKeys.map { initialKey ->
+        val instructionIterator = instructionSequence.iterator()
+        var stepCount = 0
+        var currentKey = initialKey
+        while (instructionIterator.hasNext()) {
+            if (currentKey.endsWith('Z')) {
+                println("Reached Z in $stepCount steps ($initialKey)")
+                break
             }
-            'R' -> {
-                currentNodeKeys.forEachIndexed { index, key ->
-                    currentNodeKeys[index] = nodeMap[key]?.second ?: throw Exception("Invalid node: $key")
-                }
-            }
-            else -> throw Exception("Invalid instruction: $instruction")
-        }
 
-        stepCount++
-        if (stepCount % 100000 == 0) println("Step $stepCount")
+            currentKey = when (val instruction = instructionIterator.next()) {
+                'L' -> nodeMap[currentKey]?.first!!
+                'R' -> nodeMap[currentKey]?.second!!
+                else -> throw Exception("Invalid instruction: $instruction")
+            }
+
+            stepCount++
+        }
+        stepCount
     }
+
+    println("Steps till synchronized Z: ${loopLengths.lcm()}")
 }
 
 private fun doPart1(
@@ -59,9 +58,9 @@ private fun doPart1(
         }
         val currentNode = nodeMap[currentNodeKey] ?: throw Exception("Invalid node: $currentNodeKey")
 
-        when (val instruction = instructionSequence.next()) {
-            'L' -> currentNodeKey = currentNode.first
-            'R' -> currentNodeKey = currentNode.second
+        currentNodeKey = when (val instruction = instructionSequence.next()) {
+            'L' -> currentNode.first
+            'R' -> currentNode.second
             else -> throw Exception("Invalid instruction: $instruction")
         }
 
