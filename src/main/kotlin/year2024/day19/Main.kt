@@ -1,13 +1,9 @@
 package year2024.day19
 
 import getInputResourceLines
-import java.util.Deque
+import java.util.*
 
-const val ANSI_ESCAPE_RED = "\u001B[31m"
 const val ANSI_ESCAPE_RESET = "\u001B[0m"
-const val ASCII_BOX = '█';
-
-const val GRID_SIZE = 71
 
 fun main() {
     val inputRaw = getInputResourceLines(2024, 19)
@@ -18,30 +14,115 @@ fun main() {
     val patterns = inputRaw.drop(2)
 
     val possiblePatterns = patterns.filter {
-        val possible = canMakePattern(it.toList(), rootNode)
-        println("Pattern: $it, Possible: ${if (possible) "Yes" else "No"}")
-        possible
+        val path = findShortestPath(it, rootNode)
+        if (path != null) {
+            printPath(path)
+        } else {
+            println("No path found for $it")
+        }
+        path != null
     }
 
     println("Part 1, possible designs: ${possiblePatterns.size}")
 }
 
-fun canMakePattern(pattern: List<Char>, node: TrieNode): Boolean {
-    if (pattern.isEmpty()) {
-        return true
+fun printPath(
+    path: Collection<DijkstraNode>,
+) {
+    // Print the path, with every unique node substring in a different color
+    val availableColors = (41..46) + (101..106)
+    val colorMap = mutableMapOf<String, Int>()
+    path.forEachIndexed { index, node ->
+        val substr = node.getSubString()
+        val bgColor = colorMap.getOrPut(substr) { availableColors[colorMap.size % availableColors.size] }
+        // For color 41..46 we want to use white text, for 101..106 we want to use black text
+        val textColor = if (bgColor in 41..46) 30 else 97
+        print("\u001B[${bgColor}m\u001B[${textColor}m$substr")
+    }
+    println(ANSI_ESCAPE_RESET)
+}
+
+fun findShortestPath(
+    pattern: String,
+    rootNode: TrieNode
+): List<DijkstraNode>? {
+    val cameFrom = mutableMapOf<DijkstraNode, DijkstraNode>()
+
+    val startNode = DijkstraNode(pattern, 0, 0)
+
+    val gScores = mutableMapOf<DijkstraNode, Int>()
+    gScores[startNode] = 0
+
+    val fScores = mutableMapOf<DijkstraNode, Int>()
+    fScores[startNode] = pattern.length - startNode.endIndex
+
+    val queue = PriorityQueue<DijkstraNode> { a, b ->
+        fScores.getOrDefault(a, Int.MAX_VALUE) - fScores.getOrDefault(b, Int.MAX_VALUE)
     }
 
-    val prefixes = findLongestPrefix(node, pattern)
-    // Iterate in reverse order to get the longest prefix first
-    for (i in prefixes.indices.reversed()) {
-        val prefixLength = prefixes[i]
-        val remainingPattern = pattern.subList(prefixLength, pattern.size)
-        if (canMakePattern(remainingPattern, node)) {
-            return true
+    queue.add(startNode)
+
+    while (queue.isNotEmpty()) {
+        val current = queue.poll()
+
+        if (current.endIndex == pattern.length) {
+            return reconstructPath(cameFrom, current)
+        }
+
+        for (neighbor in findPrefixes(rootNode, pattern, current.endIndex)) {
+            val tentativeGScore = gScores[current]!! + 1
+            if (tentativeGScore < gScores.getOrDefault(neighbor, Int.MAX_VALUE)) {
+                cameFrom[neighbor] = current
+                gScores[neighbor] = tentativeGScore
+                fScores[neighbor] = tentativeGScore + pattern.length - neighbor.endIndex
+                if (!queue.contains(neighbor)) {
+                    queue.add(neighbor)
+                }
+            }
         }
     }
 
-    return false
+    return null
+}
+
+data class DijkstraNode(
+    val pattern: String,
+    val startIndex: Int,
+    val endIndex: Int,
+) {
+    fun getSubString() = pattern.substring(startIndex, endIndex)
+
+    override fun toString(): String {
+        return "DijkstraNode(startIndex=$startIndex, endIndex=$endIndex, str=${pattern.substring(startIndex, endIndex)})"
+    }
+}
+
+fun reconstructPath(cameFrom: Map<DijkstraNode, DijkstraNode>, initialCurrent: DijkstraNode): MutableList<DijkstraNode> {
+    var current = initialCurrent
+    val path = mutableListOf(current)
+    while (cameFrom.containsKey(current)) {
+        current = cameFrom[current]!!
+        path.addFirst(current)
+    }
+    return path
+}
+
+fun findPrefixes(
+    rootNode: TrieNode,
+    pattern: String,
+    startIndex: Int
+) = sequence {
+    var endIndex = startIndex
+    var currentNode = rootNode
+    for (i in startIndex..<pattern.length) {
+        val char = pattern[i]
+        val childNode = currentNode.children[char] ?: break
+        endIndex++
+        currentNode = childNode
+        if (currentNode.isEnd) {
+            yield(DijkstraNode(pattern, startIndex, endIndex))
+        }
+    }
 }
 
 data class TrieNode(
@@ -63,23 +144,4 @@ fun buildTrie(patterns: List<String>): TrieNode {
     }
 
     return rootNode
-}
-
-fun findLongestPrefix(
-    rootNode: TrieNode,
-    pattern: Collection<Char>,
-): MutableList<Int> {
-    val prefixLengths = mutableListOf<Int>()
-    var prefixLength = 0
-    var currentNode = rootNode
-    for (char in pattern) {
-        val childNode = currentNode.children[char] ?: break
-        prefixLength++
-        currentNode = childNode
-        if (currentNode.isEnd) {
-            prefixLengths.add(prefixLength)
-        }
-    }
-
-    return prefixLengths
 }
