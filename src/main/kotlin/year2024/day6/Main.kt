@@ -31,38 +31,7 @@ fun main() {
         }
     }
 
-    val guardSteps: MutableSet<Pair<Position, Direction>> = mutableSetOf()
-    val potentialObstaclePositions: MutableSet<Position> = mutableSetOf()
-    var guardDirection = Direction.UP
-
-    while (true) {
-        grid[guardPosition.row][guardPosition.col] = when (grid[guardPosition.row][guardPosition.col]) {
-            '.', '^' -> if (guardDirection == Direction.UP || guardDirection == Direction.DOWN) '|' else '-'
-            else -> '+'
-        }
-        guardSteps.add(guardPosition to guardDirection)
-
-        val (nextPosition, newDirection) = determineNextDirectionAndPosition(guardDirection, guardPosition)
-
-        val nextPositionValue = inputRaw.safeGet(nextPosition.row, nextPosition.col)
-        if (nextPositionValue == '#') {
-            guardDirection = newDirection
-        } else if (nextPositionValue == null) {
-            break // Out of bounds
-        } else {
-            // Check if putting an obstacle will create a loop
-            addPotentialObstacleLoop(
-                guardPosition,
-                guardDirection,
-                grid,
-                guardSteps,
-                potentialObstaclePositions,
-                nextPosition
-            )
-
-            guardPosition = nextPosition // Mark as visited
-        }
-    }
+    simulateGuardWalk(grid, guardPosition, inputRaw, true)
 
     println()
     println("Loop result:")
@@ -76,32 +45,67 @@ fun main() {
     val visitedCount = grid.sumOf { row -> row.count { it == '|' || it == '-' || it == '+' } }
     println("Part 1: $visitedCount")
 
-    println("Part 2: ${potentialObstaclePositions.size}")
+    // Find all unique positions that create a loop
+    val part2Grid = inputRaw.map { it.toCharArray() }.toTypedArray()
+
+    var loopPositionCount = 0;
+    for (rowIndex in part2Grid.indices) {
+        for (colIndex in part2Grid[rowIndex].indices) {
+            if (part2Grid[rowIndex][colIndex] == '.') {
+                val obstaclePosition = Position(rowIndex, colIndex)
+                if (!simulateGuardWalk(part2Grid, guardPosition, inputRaw, false, obstaclePosition)) {
+                    println("Loop position: $obstaclePosition")
+                    loopPositionCount++
+                }
+            }
+        }
+    }
+
+    println("Part 2: $loopPositionCount")
 }
 
-fun addPotentialObstacleLoop(
-    guardPosition: Position,
-    guardDirection: Direction,
+/**
+ * Returns true if walk ends outside the grid
+ * Returns false if walk is a loop
+ */
+private fun simulateGuardWalk(
     grid: Array<CharArray>,
-    guardSteps: MutableSet<Pair<Position, Direction>>,
-    potentialObstaclePositions: MutableSet<Position>,
-    potentialObstablePosition: Position
-) {
-    var position = guardPosition
-    val (_, direction) = determineNextDirectionAndPosition(guardDirection, guardPosition)
+    initialGuardPosition: Position,
+    inputRaw: List<String>,
+    writePath: Boolean,
+    additionalObstacle: Position? = null
+): Boolean {
+    var guardPosition = initialGuardPosition
+    val guardSteps: MutableSet<Pair<Position, Direction>> = mutableSetOf()
+    var guardDirection = Direction.UP
 
-    while (position.isValid(grid)) {
-        val (nextPosition, _) = determineNextDirectionAndPosition(direction, position)
+    while (true) {
+        val step = guardPosition to guardDirection
+        if (guardSteps.contains(step)) {
+            // Loop detected
+            return false
+        }
+        guardSteps.add(step)
 
-        if (guardSteps.contains(nextPosition to direction)) {
-            if (potentialObstaclePositions.add(potentialObstablePosition)) {
-                //printObstacleFound(obstaclePosition, grid)
+        if (writePath) {
+            grid[guardPosition.row][guardPosition.col] = when (grid[guardPosition.row][guardPosition.col]) {
+                '.', '^' -> if (guardDirection == Direction.UP || guardDirection == Direction.DOWN) '|' else '-'
+                else -> '+'
             }
-
-            return
         }
 
-        position = nextPosition
+        val (nextPosition, newDirection) = determineNextDirectionAndPosition(guardDirection, guardPosition)
+
+        // Pretend value is '#' if it's the additional obstacle to simulate it
+        val nextPositionValue = if (nextPosition == additionalObstacle) '#' else inputRaw.safeGet(nextPosition.row, nextPosition.col)
+        if (nextPositionValue == '#') {
+            guardDirection = newDirection
+        } else if (nextPositionValue == null) {
+            return true
+        } else {
+            // Check if putting an obstacle will create a loop
+            guardPosition = nextPosition // Mark as visited
+        }
     }
 }
 
@@ -113,20 +117,6 @@ private fun determineNextDirectionAndPosition(
     Direction.RIGHT -> Position(guardPosition.row, guardPosition.col + 1) to Direction.DOWN
     Direction.DOWN -> Position(guardPosition.row + 1, guardPosition.col) to Direction.LEFT
     Direction.LEFT -> Position(guardPosition.row, guardPosition.col - 1) to Direction.UP
-}
-
-fun printObstacleFound(obstaclePosition: Position, grid: Array<CharArray>) {
-    println("Potential loop detected, add obstacle $obstaclePosition")
-    for (row in grid.indices) {
-        for (col in grid[row].indices) {
-            if (row == obstaclePosition.row && col == obstaclePosition.col) {
-                print('O')
-            } else {
-                print(grid[row][col])
-            }
-        }
-        println()
-    }
 }
 
 fun List<String>.safeGet(row: Int, col: Int): Char? {
